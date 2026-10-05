@@ -21,8 +21,7 @@ CREATE TABLE magazine (
     series        VARCHAR(200),
     publisher     VARCHAR(200) NOT NULL,
     year          SMALLINT NOT NULL CHECK (year BETWEEN 1800 AND 2100),
-    isbn          VARCHAR(17) NOT NULL UNIQUE,
-    is_rare       BOOLEAN NOT NULL DEFAULT FALSE
+    isbn          VARCHAR(17) NOT NULL UNIQUE
 );
  
 -- 3. Журнал <-> Автор проміжна таблиця (багато до багатьох)

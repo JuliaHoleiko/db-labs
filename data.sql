@@ -7,13 +7,13 @@ INSERT INTO author (full_name) VALUES
     ('Ніл Гейман');
 
 
-INSERT INTO magazine (title, series, publisher, year, isbn, is_rare) VALUES
-    ('Amazing Spider-Man',  'Spider-Man',     'Marvel',      1963, '978-0-7851-1001-1', TRUE),
-    ('Batman: Year One',    'Batman',         'DC Comics',   1987, '978-1-4012-0752-4', FALSE),
-    ('Akira',               'Akira',          'Kodansha',    1988, '978-4-0631-0001-7', TRUE),
-    ('The Sandman',         'Sandman',        'Vertigo',     1989, '978-1-4012-1001-8', FALSE),
-    ('Fantastic Four',      'Fantastic Four', 'Marvel',      1961, '978-0-7851-1005-5', TRUE);
-
+INSERT INTO magazine (title, series, publisher, year, isbn) VALUES
+    ('Amazing Spider-Man',  'Spider-Man',     'Marvel',      1963, '978-0-7851-1001-1'),
+    ('Batman: Year One',    'Batman',         'DC Comics',   1987, '978-1-4012-0752-4'),
+    ('Akira',               'Akira',          'Kodansha',    1988, '978-4-0631-0001-7'),
+    ('The Sandman',         'Sandman',        'Vertigo',     1989, '978-1-4012-1001-8'),
+    ('Fantastic Four',      'Fantastic Four', 'Marvel',      1961, '978-0-7851-1005-5');
+    
 INSERT INTO magazine_author (magazine_id, author_id) VALUES
     (1, 1), (1, 2),     -- Spider-Man: Стен Лі, Стів Дітко
     (2, 3), (2, 4),     -- Batman: Френк Міллер, Девід Мацукеллі
