@@ -13,7 +13,7 @@ INSERT INTO magazine (title, series, publisher, year, isbn) VALUES
     ('Akira',               'Akira',          'Kodansha',    1988, '978-4-0631-0001-7'),
     ('The Sandman',         'Sandman',        'Vertigo',     1989, '978-1-4012-1001-8'),
     ('Fantastic Four',      'Fantastic Four', 'Marvel',      1961, '978-0-7851-1005-5');
-    
+
 INSERT INTO magazine_author (magazine_id, author_id) VALUES
     (1, 1), (1, 2),     -- Spider-Man: Стен Лі, Стів Дітко
     (2, 3), (2, 4),     -- Batman: Френк Міллер, Девід Мацукеллі
@@ -43,7 +43,10 @@ INSERT INTO stock (department_id, magazine_id, quantity) VALUES
     (3, 1, 2),      -- Spider-Man у "Світ Журналів"
     (3, 4, 7),      -- Sandman
     (4, 4, 4),      -- Sandman у відділі "Журнали"
-    (5, 3, 8);      -- Akira у "Манга Хаб"
+    (5, 3, 8),
+    (1, 5, 10),
+    (2, 4, 10), 
+    (3, 3, 5);       -- Akira у "Манга Хаб"
 
 
 INSERT INTO customer (email, full_name, birth_date, address, phone) VALUES
@@ -54,7 +57,7 @@ INSERT INTO customer (email, full_name, birth_date, address, phone) VALUES
     ('sofiia.tkachenko@example.com', 'Ткаченко Софія Андріївна',    '2010-01-09', 'Київ, вул. Липська, 3',       '+380965556677');
 
 
-INSERT INTO sale (customer_id, store_id, magazine_id, sale_date) VALUES
+INSERT INTO sale (customer_id, department_id, magazine_id, sale_date) VALUES
     (1, 1, 1, '2026-08-10'),
     (1, 1, 2, '2026-09-20'),
     (1, 2, 3, '2026-10-01'),

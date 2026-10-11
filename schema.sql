@@ -66,39 +66,57 @@ CREATE TABLE customer (
     phone        VARCHAR(20),
     best_store_id INT REFERENCES store(store_id) ON DELETE SET NULL
                                   -- улюблений магазин (де найчастіше купує),
-                                  -- оновлюється тригером після кожного продажу
+                                  -- оновлюється тригером після оновлень у таблиці sale
 );
  
--- 8. Продажі: хто, де (в якому магазині), що і коли купив
+-- 8. Продажі: хто, де що і коли купив
 CREATE TABLE sale (
     sale_id      SERIAL PRIMARY KEY,
     customer_id  INT  NOT NULL REFERENCES customer(customer_id),
-    store_id     INT  NOT NULL REFERENCES store(store_id),
-    magazine_id  INT  NOT NULL REFERENCES magazine(magazine_id),
-    -- department_id  INT  NOT NULL REFERENCES department(department_id),
-    sale_date    DATE NOT NULL DEFAULT CURRENT_DATE
+    department_id  INT  NOT NULL,
+    magazine_id  INT  NOT NULL,
+    sale_date    DATE NOT NULL DEFAULT CURRENT_DATE,
+    -- продати можна лише те, що фізично є у цьому відділі
+    CONSTRAINT fk_sale_stock
+        FOREIGN KEY (department_id, magazine_id)
+        REFERENCES stock (department_id, magazine_id)
 );
  
--- ТРИГЕР: після кожного продажу перераховує кращий магазин покупця
-CREATE FUNCTION update_best_store() RETURNS trigger AS $$
+ --- ТРИГЕРИ
+ -- Тригер для обчислення улюбленого магазину
+CREATE FUNCTION recalc_best_store(p_customer INT) RETURNS void AS $$
 BEGIN
     UPDATE customer
     SET best_store_id = (
-        SELECT store_id
-        FROM sale
-        WHERE customer_id = NEW.customer_id
-        GROUP BY store_id
-        ORDER BY COUNT(*) DESC, store_id
+        SELECT d.store_id
+        FROM sale s
+        JOIN department d ON d.department_id = s.department_id
+        WHERE s.customer_id = p_customer
+        GROUP BY d.store_id
+        ORDER BY COUNT(*) DESC, MAX(s.sale_date) DESC, MAX(s.sale_id) DESC 
         LIMIT 1
     )
-    WHERE customer_id = NEW.customer_id;
-    RETURN NEW;
+    WHERE customer_id = p_customer;
 END;
 $$ LANGUAGE plpgsql;
- 
+
+CREATE FUNCTION trg_best_store() RETURNS trigger AS $$
+BEGIN
+    IF TG_OP IN ('INSERT', 'UPDATE') THEN
+        PERFORM recalc_best_store(NEW.customer_id);
+    END IF;
+    IF TG_OP = 'DELETE'
+       OR (TG_OP = 'UPDATE' AND OLD.customer_id IS DISTINCT FROM NEW.customer_id) THEN
+        PERFORM recalc_best_store(OLD.customer_id);
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE TRIGGER trg_sale_best_store
-AFTER INSERT ON sale
-FOR EACH ROW EXECUTE FUNCTION update_best_store();
+AFTER INSERT OR DELETE OR UPDATE OF customer_id, department_id, sale_date ON sale
+FOR EACH ROW EXECUTE FUNCTION trg_best_store();
+
 -- Тригери для контролю місткості 
 CREATE FUNCTION check_department_capacity() RETURNS trigger AS $$
 DECLARE
@@ -144,3 +162,69 @@ CREATE TRIGGER trg_department_capacity
 BEFORE UPDATE OF capacity ON department
 FOR EACH ROW EXECUTE FUNCTION check_capacity_not_below_stock();
 
+-- Тригер на зменшення кількості журналів після покупки
+CREATE FUNCTION sale_decrease_stock() RETURNS trigger AS $$
+BEGIN
+    UPDATE stock
+    SET quantity = quantity - 1
+    WHERE department_id = NEW.department_id
+      AND magazine_id   = NEW.magazine_id
+      AND quantity > 0;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Журнал % відсутній у відділі %',
+                         NEW.magazine_id, NEW.department_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_sale_stock
+BEFORE INSERT ON sale
+FOR EACH ROW EXECUTE FUNCTION sale_decrease_stock();
+
+-- Тригер на повернення журналів у stock у випадку видалення з обліку продажів
+CREATE FUNCTION sale_restore_stock() RETURNS trigger AS $$
+BEGIN
+    UPDATE stock SET quantity = quantity + 1
+    WHERE department_id = OLD.department_id AND magazine_id = OLD.magazine_id;
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_sale_restore
+AFTER DELETE ON sale
+FOR EACH ROW EXECUTE FUNCTION sale_restore_stock();
+
+-- Тригер на зміну відділу або журналу в існуючому продажу:
+-- повертає журнал на старе місце і списує з нового
+CREATE FUNCTION sale_update_stock() RETURNS trigger AS $$
+BEGIN
+    -- повернути на склад те, що було продано раніше
+    UPDATE stock
+    SET quantity = quantity + 1
+    WHERE department_id = OLD.department_id
+      AND magazine_id   = OLD.magazine_id;
+
+    -- списати з нового місця
+    UPDATE stock
+    SET quantity = quantity - 1
+    WHERE department_id = NEW.department_id
+      AND magazine_id   = NEW.magazine_id
+      AND quantity > 0;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Журнал % відсутній у відділі %',
+                         NEW.magazine_id, NEW.department_id;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_sale_update_stock
+BEFORE UPDATE OF department_id, magazine_id ON sale
+FOR EACH ROW
+WHEN (OLD.department_id IS DISTINCT FROM NEW.department_id
+      OR OLD.magazine_id IS DISTINCT FROM NEW.magazine_id)
+EXECUTE FUNCTION sale_update_stock();
