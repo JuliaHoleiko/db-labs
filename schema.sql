@@ -75,6 +75,7 @@ CREATE TABLE sale (
     customer_id  INT  NOT NULL REFERENCES customer(customer_id),
     store_id     INT  NOT NULL REFERENCES store(store_id),
     magazine_id  INT  NOT NULL REFERENCES magazine(magazine_id),
+    -- department_id  INT  NOT NULL REFERENCES department(department_id),
     sale_date    DATE NOT NULL DEFAULT CURRENT_DATE
 );
  
@@ -98,3 +99,48 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_sale_best_store
 AFTER INSERT ON sale
 FOR EACH ROW EXECUTE FUNCTION update_best_store();
+-- Тригери для контролю місткості 
+CREATE FUNCTION check_department_capacity() RETURNS trigger AS $$
+DECLARE
+    v_capacity INT;
+    v_total    INT;
+BEGIN
+    SELECT capacity INTO v_capacity
+    FROM department
+    WHERE department_id = NEW.department_id
+    FOR UPDATE;
+
+    SELECT COALESCE(SUM(quantity), 0) INTO v_total
+    FROM stock
+    WHERE department_id = NEW.department_id
+      AND magazine_id <> NEW.magazine_id;   -- без поточного рядка
+
+    IF v_total + NEW.quantity > v_capacity THEN
+        RAISE EXCEPTION
+            'Відділ % переповнений: місткість %, буде %',
+            NEW.department_id, v_capacity, v_total + NEW.quantity;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_stock_capacity
+BEFORE INSERT OR UPDATE OF quantity, department_id ON stock
+FOR EACH ROW EXECUTE FUNCTION check_department_capacity();
+
+-- Тригер для зворотньої перевірки капасіті
+-- щоб не було можливості зменшити капасіті відділу, якщо поточна к-сть журналів не дозволяє
+CREATE FUNCTION check_capacity_not_below_stock() RETURNS trigger AS $$
+BEGIN
+    IF (SELECT COALESCE(SUM(quantity),0) FROM stock
+        WHERE department_id = NEW.department_id) > NEW.capacity THEN
+        RAISE EXCEPTION 'Нова місткість менша за поточну кількість журналів';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_department_capacity
+BEFORE UPDATE OF capacity ON department
+FOR EACH ROW EXECUTE FUNCTION check_capacity_not_below_stock();
+
