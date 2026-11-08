@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import select, func, distinct, text
 from api.engine import DBConn
 from models import Author, Magazine, Store, Department, Stock, Customer, Sale
+from dateutil.relativedelta import relativedelta
 
 
 def run_all_queries():
@@ -58,7 +59,7 @@ def run_all_queries():
         print("\n" + "=" * 80)
         print("5. Хто з покупців купив журнал понад місяць тому?")
         print("=" * 80)
-        month_ago = datetime.now().date() - timedelta(days=30)
+        month_ago = datetime.now().date() - relativedelta(months=1)
         stmt5 = (
             select(Customer.customer_id, Customer.full_name, Customer.email)
             .join(Sale, Customer.customer_id == Sale.customer_id)
